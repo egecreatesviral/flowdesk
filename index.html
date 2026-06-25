@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUX_FLOW // Lofi Sunset Workspace</title>
+    <!-- Three.js, OrbitControls (Kamera için) ve Tween.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&display=swap');
+        
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #0a0402; font-family: 'Inter', sans-serif; color: #fff; user-select: none; }
+        #canvas-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        
+        /* 💎 ARAYÜZ (Glassmorphism) */
+        .glass-panel {
+            background: rgba(15, 8, 5, 0.4); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 200, 100, 0.08); border-radius: 20px; box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+        }
+
+        /* 🚀 ONBOARDING (GİRİŞ) EKRANLARI */
+        .onboarding-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(10, 5, 2, 0.9); backdrop-filter: blur(40px); transition: opacity 0.8s ease;
+        }
+        .step-container { text-align: center; max-width: 450px; display: none; flex-direction: column; gap: 20px; animation: fadeIn 0.5s ease; }
+        .step-active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .title { font-size: 14px; letter-spacing: 6px; font-weight: 600; text-transform: uppercase; color: #ff9e5e; }
+        .subtitle { font-size: 12px; opacity: 0.7; margin-bottom: 10px; line-height: 1.6; }
+        .highlight-text { font-size: 11px; color: #ffd700; background: rgba(255,215,0,0.1); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,215,0,0.2); }
+        
+        .lux-input {
+            background: rgba(0,0,0,0.6); border: 1px solid rgba(255,158,94,0.3); border-radius: 12px;
+            padding: 15px; color: #fff; font-family: 'Inter'; font-size: 14px; text-align: center; outline: none; width: 100%; box-sizing: border-box; transition: 0.3s;
+        }
+        .lux-input:focus { border-color: #ff9e5e; box-shadow: 0 0 15px rgba(255,158,94,0.2); }
+        
+        .btn-large {
+            background: linear-gradient(135deg, #ff9e5e, #ff6b35); color: #000; border: none; border-radius: 12px; padding: 15px; font-weight: 600; cursor: pointer; transition: 0.3s; font-size: 14px; letter-spacing: 1px;
+        }
+        .btn-large:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255,107,53,0.3); }
+        .btn-outline { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #fff; box-shadow: none; }
+        .btn-outline:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
+
+        /* 🎛️ ANA ARAYÜZ ELEMANLARI */
+        .ui-layer { position: absolute; z-index: 10; opacity: 0; pointer-events: none; transition: opacity 1s ease; }
+        .ui-active { opacity: 1; pointer-events: auto; }
+
+        #agenda-panel { top: 30px; left: 30px; width: 360px; max-height: 85vh; display: flex; flex-direction: column; padding: 25px; }
+        .task-creator { background: rgba(0,0,0,0.4); border-radius: 15px; padding: 15px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        .color-picker { display: flex; gap: 8px; margin-bottom: 15px; justify-content: center; }
+        .color-btn { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: 0.2s; }
+        .color-btn.selected { border-color: #fff; transform: scale(1.2); }
+
+        /* Dinamik Görev Listesi */
+        #task-list { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; margin-top: 20px; padding-right: 5px; }
+        .task-item { background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        .task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .task-actions { display: flex; gap: 5px; }
+        .icon-btn { background: transparent; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 12px; transition: 0.2s; }
+        .icon-btn:hover { color: #fff; }
+        .task-progress { display: flex; align-items: center; justify-content: space-between; }
+        .progress-bar { flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: 0.3s; }
+        .btn-complete { background: transparent; border: 1px solid rgba(255,158,94,0.5); color: #ff9e5e; padding: 5px 15px; border-radius: 8px; cursor: pointer; font-size: 11px; transition: 0.3s; font-weight: 600; }
+        .btn-complete:hover { background: rgba(255,158,94,0.15); }
+        .btn-logout { background: rgba(255,158,94,0.1); border: 1px solid rgba(255,158,94,0.3); color: #ff9e5e; border-radius: 6px; font-size: 10px; cursor: pointer; padding: 4px 10px; transition: 0.3s; }
+        .btn-logout:hover { background: rgba(255,158,94,0.3); color: #fff; }
+
+        /* 🔔 BİLDİRİM */
+        #notification-container { position: fixed; top: 30px; right: 30px; z-index: 50; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { background: rgba(20, 10, 5, 0.85); backdrop-filter: blur(10px); border-left: 3px solid #ff9e5e; padding: 15px 25px; border-radius: 12px; font-size: 12px; font-weight: 400; box-shadow: 0 10px 30px rgba(0,0,0,0.5); transform: translateX(120%); transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
+        .toast.show { transform: translateX(0); }
+        .tutorial-highlight { box-shadow: 0 0 0 4px #ff9e5e !important; z-index: 999; position: relative; }
+
+        /* Kamera Uyarı Metni */
+        .camera-hint { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 2px; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 1s; }
+        .ui-active + .camera-hint { opacity: 1; }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- 🚀 ONBOARDING (KAYIT & GİRİŞ) -->
+    <div id="onboarding-screen" class="onboarding-screen">
+        
+        <!-- ADIM 1: DİL SEÇİMİ -->
+        <div id="step-1" class="step-container step-active glass-panel" style="padding: 40px;">
+            <div class="title">Language / Dil</div>
+            <p class="subtitle">Please select your preferred language.<br>Lütfen dil seçiminizi yapın.</p>
+            <button class="btn-large btn-outline" onclick="setLanguage('en')">English</button>
+            <button class="btn-large btn-outline" onclick="setLanguage('tr')">Türkçe</button>
+        </div>
+
+        <!-- ADIM 2: HESAP (KAYIT/GİRİŞ) -->
+        <div id="step-2" class="step-container glass-panel" style="padding: 40px;">
+            <div class="title" id="t-login-title">LOGIN / SYNC</div>
+            <p class="subtitle" id="t-login-sub">Workspace will remember your progress.</p>
+            <div class="highlight-text" id="t-login-warn">
+                💡 Masanıza daha sonra geri dönmek istiyorsanız, buraya hatırlayacağınız bir kelime veya şifre yazınız. (Gerçek mail olmak zorunda değil).
+            </div>
+            <input type="text" id="email-input" class="lux-input" placeholder="Gizli kelimenizi girin...">
+            <button class="btn-large" onclick="handleLogin()" id="t-login-btn">MASAYI KUR (DEVAM ET)</button>
+        </div>
+
+        <!-- ADIM 3: TUTORIAL (EĞİTİM) -->
+        <div id="step-3" class="step-container glass-panel" style="padding: 40px;">
+            <div class="title" id="t-tut-title">INITIALIZE</div>
+            <p class="subtitle" id="t-tut-sub">Would you like a quick tour of the system?</p>
+            <button class="btn-large" onclick="startApp(true)" id="t-tut-yes">Yes, show me how</button>
+            <button class="btn-large btn-outline" onclick="startApp(false)" id="t-tut-no">Skip tutorial</button>
+        </div>
+    </div>
+
+    <!-- 📺 3D SAHNE -->
+    <div id="canvas-container"></div>
+
+    <!-- 🎛️ GÖREV YÖNETİCİSİ -->
+    <div id="agenda-panel" class="glass-panel ui-layer">
+        <h1 style="margin-bottom: 5px; color: #ff9e5e;">AGENDA BUILDER</h1>
+        
+        <!-- ÜST BİLGİ & ÇIKIŞ BUTONU -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <p style="font-size: 11px; opacity: 0.7; margin: 0;" id="user-display">Account: -</p>
+            <button class="btn-logout" onclick="logout()" id="t-logout-btn">Change / Log out</button>
+        </div>
+        
+        <div class="task-creator" id="tutorial-box-1">
+            <div class="input-group">
+                <input type="text" id="task-name" class="lux-input" placeholder="Task name..." style="padding: 10px; font-size:12px;">
+                <input type="number" id="task-count" class="lux-input" placeholder="Qty" min="1" value="1" style="width: 60px; padding: 10px;">
+            </div>
+            <div class="color-picker" id="color-picker">
+                <div class="color-btn selected" style="background: #14b8a6;" data-color="0x14b8a6"></div>
+                <div class="color-btn" style="background: #8b5cf6;" data-color="0x8b5cf6"></div>
+                <div class="color-btn" style="background: #ff9e5e;" data-color="0xff9e5e"></div>
+                <div class="color-btn" style="background: #ef4444;" data-color="0xef4444"></div>
+            </div>
+            <button class="btn-large" style="width: 100%; padding: 10px;" onclick="addTask()" id="t-add-btn">Add Task</button>
+        </div>
+
+        <div id="task-list"></div>
+    </div>
+
+    <!-- Kamera İpucu -->
+    <div class="camera-hint" id="camera-hint-text">DRAG TO ROTATE CAMERA // SCROLL TO ZOOM</div>
+
+    <!-- 🔔 BİLDİRİM ALANI -->
+    <div id="notification-container"></div>
+
+    <script>
+        // ==========================================
+        // 1. DİL DESTEĞİ VE KELİME DAĞARCIĞI
+        // ==========================================
+        let lang = 'en';
+        const dict = {
+            en: {
+                loginTitle: "SYNC WORKSPACE", 
+                loginSub: "Your tasks and blocks will be saved.", 
+                loginWarn: "💡 To return to your desk later, write a random word or password here. (No real email required).", 
+                loginBtn: "BUILD MY DESK",
+                tutTitle: "SYSTEM READY", tutSub: "Would you like a quick tour?", tutYes: "Yes, show me", tutNo: "Skip tutorial",
+                addBtn: "Create Task", completeBtn: "Done", welcome: "Welcome back to your sunset workspace.", tut1: "1. Type a task name, set amount and choose a block color.", tut2: "2. Click 'Done' to drop a jelly block onto your desk!",
+                account: "Account: ", logout: "Change ID", camHint: "DRAG TO ROTATE CAMERA // SCROLL TO ZOOM"
+            },
+            tr: {
+                loginTitle: "MASANI EŞİTLE", 
+                loginSub: "Görevlerin ve masan kalıcı olarak kaydedilecek.", 
+                loginWarn: "💡 Masanıza daha sonra geri dönmek istiyorsanız, buraya hatırlayacağınız bir kelime veya şifre yazınız. (Gerçek mail olmak zorunda değil).", 
+                loginBtn: "MASAYI KUR",
+                tutTitle: "SİSTEM HAZIR", tutSub: "Nasıl çalıştığını görmek ister misin?", tutYes: "Evet, göster", tutNo: "Eğitimi Atla",
+                addBtn: "Görev Oluştur", completeBtn: "Yap", welcome: "Lofi masana tekrar hoş geldin.", tut1: "1. Görev adını yaz, adedini belirle ve bir renk seç.", tut2: "2. Jel bloğunu masaya düşürmek için 'Yap' butonuna bas!",
+                account: "Hesap: ", logout: "Değiştir / Çıkış", camHint: "KAMERAYI ÇEVİRMEK İÇİN SÜRÜKLE // YAKINLAŞMAK İÇİN KAYDIR"
+            }
+        };
+
+        function setLanguage(selectedLang) {
+            lang = selectedLang;
+            document.getElementById('t-login-title').innerText = dict[lang].loginTitle;
+            document.getElementById('t-login-sub').innerText = dict[lang].loginSub;
+            document.getElementById('t-login-warn').innerText = dict[lang].loginWarn;
+            document.getElementById('t-login-btn').innerText = dict[lang].loginBtn;
+            
+            document.getElementById('t-tut-title').innerText = dict[lang].tutTitle;
+            document.getElementById('t-tut-sub').innerText = dict[lang].tutSub;
+            document.getElementById('t-tut-yes').innerText = dict[lang].tutYes;
+            document.getElementById('t-tut-no').innerText = dict[lang].tutNo;
+            document.getElementById('t-add-btn').innerText = dict[lang].addBtn;
+            document.getElementById('t-logout-btn').innerText = dict[lang].logout;
+            document.getElementById('camera-hint-text').innerText = dict[lang].camHint;
+
+            document.getElementById('step-1').classList.remove('step-active');
+            document.getElementById('step-2').classList.add('step-active');
+        }
+
+        // ==========================================
+        // 2. KULLANICI GİRİŞİ & ÇIKIŞI
+        // ==========================================
+        let currentUser = '';
+        let rawEmail = '';
+        let tasks = [];
+        let selectedColor = '0x14b8a6';
+
+        function handleLogin() {
+            const email = document.getElementById('email-input').value.trim();
+            if(!email) return alert("Lütfen gizli bir kelime girin / Please enter a keyword.");
+            
+            rawEmail = email;
+            currentUser = email.toLowerCase();
+            document.getElementById('user-display').innerText = dict[lang].account + rawEmail; // Şifreleme iptal, direkt gösteriliyor.
+            
+            const savedData = localStorage.getItem('lofiflow_' + currentUser);
+            if (savedData) tasks = JSON.parse(savedData);
+            else tasks = []; 
+
+            document.getElementById('step-2').classList.remove('step-active');
+            document.getElementById('step-3').classList.add('step-active');
+        }
+
+        function logout() {
+            // Arayüzü gizle, Onboarding'i geri getir
+            document.getElementById('onboarding-screen').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('onboarding-screen').style.opacity = '1';
+                document.querySelectorAll('.ui-layer').forEach(el => el.classList.remove('ui-active'));
+                
+                // Formları sıfırla
+                document.getElementById('email-input').value = '';
+                document.getElementById('step-3').classList.remove('step-active');
+                document.getElementById('step-2').classList.add('step-active');
+            }, 10);
+
+            // Masadaki mevcut blokları temizle
+            fallingBlocks.forEach(block => autoRotateGroup.remove(block));
+            fallingBlocks = [];
+            tasks = [];
+            document.getElementById('task-list').innerHTML = '';
+        }
+
+        function saveTasksToDB() {
+            if(currentUser) localStorage.setItem('lofiflow_' + currentUser, JSON.stringify(tasks));
+        }
+
+        // ==========================================
+        // 3. UI VE TUTORIAL
+        // ==========================================
+        function startApp(showTutorial) {
+            document.getElementById('onboarding-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('onboarding-screen').style.display = 'none';
+                document.querySelectorAll('.ui-layer').forEach(el => el.classList.add('ui-active'));
+                
+                if(!scene) init3D(); // Sahne yoksa kur, varsa devam et
+                
+                renderTasks();
+                showNotification(dict[lang].welcome);
+                loadExistingBlocks();
+
+                if(showTutorial) runTutorial();
+            }, 800);
+        }
+
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
+                e.target.classList.add('selected');
+                selectedColor = e.target.getAttribute('data-color');
+            });
+        });
+
+        function addTask(name = null, count = null, color = null) {
+            const taskName = name || document.getElementById('task-name').value.trim();
+            const taskCount = parseInt(count || document.getElementById('task-count').value);
+            if(!taskName || taskCount < 1) return;
+
+            tasks.push({ id: Date.now(), name: taskName, total: taskCount, current: 0, color: color || selectedColor });
+            
+            document.getElementById('task-name').value = '';
+            document.getElementById('task-count').value = '1';
+            
+            saveTasksToDB(); renderTasks();
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            list.innerHTML = '';
+            
+            tasks.forEach(task => {
+                const percent = (task.current / task.total) * 100;
+                const isDone = task.current >= task.total;
+                
+                const el = document.createElement('div');
+                el.className = 'task-item';
+                el.innerHTML = `
+                    <div class="task-header">
+                        <span style="font-size: 13px; font-weight: 600; ${isDone ? 'text-decoration: line-through; opacity: 0.5;' : ''}">${task.name}</span>
+                        <div class="task-actions"><button class="icon-btn" onclick="deleteTask(${task.id})">✖</button></div>
+                    </div>
+                    <div class="task-progress">
+                        <span style="font-size: 10px; opacity: 0.6;">${task.current} / ${task.total}</span>
+                        <div class="progress-bar"><div class="progress-fill" style="width: ${percent}%; background: ${task.color.replace('0x', '#')};"></div></div>
+                        <button class="btn-complete" ${isDone ? 'disabled style="opacity:0.3;"' : `onclick="progressTask(${task.id})"`}>${dict[lang].completeBtn}</button>
+                    </div>
+                `;
+                list.appendChild(el);
+            });
+        }
+
+        function progressTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if(task && task.current < task.total) {
+                task.current++; saveTasksToDB(); renderTasks();
+                dropPhysicalJellyBlock(task.color, false); 
+            }
+        }
+
+        function deleteTask(id) { tasks = tasks.filter(t => t.id !== id); saveTasksToDB(); renderTasks(); }
+
+        function showNotification(msg) {
+            const container = document.getElementById('notification-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast'; toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 500); }, 5000);
+        }
+
+        function runTutorial() {
+            if(tasks.length === 0) addTask("Tutorial: Drop a block", 1, "0xff9e5e");
+            setTimeout(() => {
+                const box1 = document.getElementById('tutorial-box-1');
+                box1.classList.add('tutorial-highlight');
+                showNotification(dict[lang].tut1);
+                setTimeout(() => { box1.classList.remove('tutorial-highlight'); showNotification(dict[lang].tut2); }, 5000);
+            }, 1000);
+        }
+
+        function loadExistingBlocks() {
+            tasks.forEach(task => { for(let i=0; i<task.current; i++) { dropPhysicalJellyBlock(task.color, true); } });
+        }
+
+        // ==========================================
+        // 4. 3D SAHNE & SERBEST KAMERA KONTROLÜ
+        // ==========================================
+        let scene, camera, renderer, autoRotateGroup, controls;
+        let fallingBlocks = [];
+        let carLights = [];
+        
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x1a0a05, 0.035); 
+
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(0, 4, 8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 🌟 ORBIT CONTROLS (KAMERA YÖNETİMİ)
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // Pürüzsüz durma
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true; // Sen bırakınca kendi kendine döner
+            controls.autoRotateSpeed = 0.4; // Sinematik hız
+            controls.maxPolarAngle = Math.PI / 2 + 0.05; // Masanın çok altına inmeyi engeller
+            controls.minDistance = 3; // En fazla bu kadar yaklaşılabilir
+            controls.maxDistance = 20; // En fazla bu kadar uzaklaşılabilir
+
+            autoRotateGroup = new THREE.Group();
+            scene.add(autoRotateGroup);
+
+            setupLofiBackground();
+            buildDeskAndObjects();
+            
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function setupLofiBackground() {
+            // Güneş
+            const sunGeo = new THREE.SphereGeometry(30, 32, 32);
+            const sunMat = new THREE.MeshBasicMaterial({ color: 0xff3300, transparent: true, opacity: 0.9 });
+            const sun = new THREE.Mesh(sunGeo, sunMat);
+            sun.position.set(-25, 8, -60);
+            autoRotateGroup.add(sun); // Güneşi de grubun içine alıyoruz ki kamerayla orantılı dursun
+
+            // Işıklandırma
+            const ambient = new THREE.AmbientLight(0xff6622, 0.5); 
+            autoRotateGroup.add(ambient);
+
+            const goldenLight = new THREE.DirectionalLight(0xff8c00, 3);
+            goldenLight.position.set(-15, 8, -10); 
+            goldenLight.castShadow = true;
+            goldenLight.shadow.mapSize.width = 1024;
+            goldenLight.shadow.mapSize.height = 1024;
+            autoRotateGroup.add(goldenLight);
+
+            // 🚗 ARABA IŞIKLARI
+            for(let i=0; i<18; i++) {
+                const isRed = Math.random() > 0.5;
+                const mat = new THREE.MeshBasicMaterial({ color: isRed ? 0xff0022 : 0xffddaa });
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(2 + Math.random()*3, 0.15, 0.15), mat);
+                
+                mesh.position.set((Math.random() - 0.5) * 80, -1 + Math.random() * 4, -40 - Math.random() * 15);
+                mesh.userData = { speed: (Math.random() * 0.15 + 0.05) * (isRed ? 1 : -1) };
+                autoRotateGroup.add(mesh);
+                carLights.push(mesh);
+            }
+        }
+
+        function buildDeskAndObjects() {
+            // Masa
+            const desk = new THREE.Mesh(new THREE.BoxGeometry(8, 0.2, 4), new THREE.MeshStandardMaterial({ color: 0x120a07, roughness: 0.8 }));
+            desk.position.y = -0.1; desk.receiveShadow = true;
+            autoRotateGroup.add(desk);
+
+            // Kitaplar
+            const book1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 1.6), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            book1.position.set(-2.5, 0.05, 0); book1.rotation.y = 0.2; book1.castShadow = true;
+            autoRotateGroup.add(book1);
+
+            const book2 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.5), new THREE.MeshStandardMaterial({ color: 0x8b2a2a }));
+            book2.position.set(-2.4, 0.16, 0.1); book2.rotation.y = 0.1; book2.castShadow = true;
+            autoRotateGroup.add(book2);
+
+            // Su Şişesi
+            const bottleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 0.8, opacity: 1, metalness: 0.1, roughness: 0.2, ior: 1.4, thickness: 0.3 });
+            const bottle = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.9, 32), bottleMat);
+            bottle.position.set(2.5, 0.45, -0.2); bottle.castShadow = true;
+            autoRotateGroup.add(bottle);
+            
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 32), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+            cap.position.set(2.5, 0.93, -0.2);
+            autoRotateGroup.add(cap);
+        }
+
+        // ==========================================
+        // 5. JEL FİZİĞİ (SQUASH & STRETCH)
+        // ==========================================
+        function dropPhysicalJellyBlock(hexColorStr, isStaticLoad = false) {
+            const size = 0.45; 
+            const colorVal = parseInt(hexColorStr.replace('0x', ''), 16);
+            const mat = new THREE.MeshStandardMaterial({ color: colorVal, roughness: 0.2, metalness: 0.1 }); 
+            const block = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), mat);
+            
+            if (isStaticLoad) {
+                block.position.set((Math.random() * 4) - 2, size/2, (Math.random() * 2) - 1);
+                block.rotation.set(0, Math.random(), 0);
+                block.userData = { isResting: true };
+            } else {
+                block.position.set((Math.random() * 4) - 2, 6, (Math.random() * 2) - 1);
+                block.rotation.set(Math.random(), Math.random(), Math.random());
+                block.userData = {
+                    velocity: -0.06, rotVelocity: { x: Math.random()*0.1, y: Math.random()*0.1, z: Math.random()*0.1 },
+                    isBouncing: false, isResting: false, size: size
+                };
+                fallingBlocks.push(block);
+            }
+            
+            block.castShadow = true; block.receiveShadow = true;
+            autoRotateGroup.add(block);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Ana Döngü
+        function animate(time) {
+            requestAnimationFrame(animate);
+            TWEEN.update(); 
+            
+            // Kamera kontrollerini güncelle (Fareyle döndürme ve otomatik dönüşü sağlar)
+            if (controls) controls.update();
+
+            // Araba Işıkları Akışı
+            carLights.forEach(light => {
+                light.position.x += light.userData.speed;
+                if(light.position.x > 50) light.position.x = -50;
+                if(light.position.x < -50) light.position.x = 50;
+            });
+
+            // Jel Blok Fiziği
+            fallingBlocks.forEach(block => {
+                if (!block.userData.isResting && !block.userData.isBouncing) {
+                    block.userData.velocity -= 0.015; 
+                    block.position.y += block.userData.velocity;
+                    block.rotation.x += block.userData.rotVelocity.x;
+                    block.rotation.y += block.userData.rotVelocity.y;
+
+                    const floorY = block.userData.size / 2;
+                    
+                    if (block.position.y <= floorY) {
+                        block.position.y = floorY;
+                        
+                        if (Math.abs(block.userData.velocity) > 0.06) {
+                            block.userData.isBouncing = true;
+                            new TWEEN.Tween(block.scale).to({ x: 1.4, y: 0.4, z: 1.4 }, 100).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => {
+                                block.userData.velocity *= -0.4;
+                                new TWEEN.Tween(block.scale).to({ x: 0.9, y: 1.2, z: 0.9 }, 150).easing(TWEEN.Easing.Quadratic.Out).onComplete(() => {
+                                    new TWEEN.Tween(block.scale).to({ x: 1, y: 1, z: 1 }, 100).start();
+                                    block.userData.isBouncing = false;
+                                }).start();
+                            }).start();
+                            block.userData.rotVelocity.x *= 0.5; block.userData.rotVelocity.y *= 0.5;
+                        } else {
+                            block.userData.isResting = true;
+                            block.rotation.set(0, block.rotation.y, 0); 
+                        }
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
